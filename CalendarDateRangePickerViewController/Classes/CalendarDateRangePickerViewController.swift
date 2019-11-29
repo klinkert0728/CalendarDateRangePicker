@@ -21,8 +21,9 @@ public class CalendarDateRangePickerViewController: UICollectionViewController {
     @objc let cellReuseIdentifier = "CalendarDateRangePickerCell"
     @objc let headerReuseIdentifier = "CalendarDateRangePickerHeaderView"
 
-    weak public var delegate: CalendarDateRangePickerViewControllerDelegate!
+    weak public var delegate: CalendarDateRangePickerViewControllerDelegate?
 
+    @objc public var allowRangeSelection: Bool = true
     @objc let itemsPerRow = 7
     @objc let itemHeight: CGFloat = 40
     @objc let collectionViewInsets = UIEdgeInsets(top: 0, left: 25, bottom: 0, right: 25)
@@ -48,6 +49,7 @@ public class CalendarDateRangePickerViewController: UICollectionViewController {
     @objc public var selectedLabelColor = UIColor(red: 255/255.0, green: 255/255.0, blue: 255/255.0, alpha: 1.0)
     @objc public var highlightedLabelColor = UIColor(red: 255/255.0, green: 255/255.0, blue: 255/255.0, alpha: 1.0)
     @objc public var titleText = "Select Dates"
+
 
     override public func viewDidLoad() {
         super.viewDidLoad()
@@ -75,14 +77,14 @@ public class CalendarDateRangePickerViewController: UICollectionViewController {
     }
 
     @objc func didTapCancel() {
-        delegate.didCancelPickingDateRange()
+        delegate?.didCancelPickingDateRange()
     }
 
     @objc func didTapDone() {
         if selectedStartDate == nil || selectedEndDate == nil {
             return
         }
-        delegate.didPickDateRange(startDate: selectedStartDate!, endDate: selectedEndDate!)
+        delegate?.didPickDateRange(startDate: selectedStartDate!, endDate: selectedEndDate!)
     }
 
 }
@@ -239,15 +241,16 @@ extension CalendarDateRangePickerViewController : UICollectionViewDelegateFlowLa
 
     override public func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         let cell = collectionView.cellForItem(at: indexPath) as! CalendarDateRangePickerCell
-        if cell.date == nil {
+        guard let cellDate = cell.date else {
             return
         }
-        if isBefore(dateA: cell.date!, dateB: minimumDate){
+        
+        if isBefore(dateA: cellDate, dateB: minimumDate) {
             return
         }
-
-        if disabledDates != nil{
-            if (disabledDates?.contains(cell.date!))!{
+        
+        if let disableDates = disabledDates {
+            if disableDates.contains(cellDate) {
                 return
             }
         }
@@ -255,30 +258,33 @@ extension CalendarDateRangePickerViewController : UICollectionViewDelegateFlowLa
         if selectedStartDate == nil {
             selectedStartDate = cell.date
             selectedStartCell = indexPath
-            delegate.didSelectStartDate(startDate: selectedStartDate)
-        } else if selectedEndDate == nil {
-            if isBefore(dateA: selectedStartDate!, dateB: cell.date!) && !isBetween(selectedStartCell!, and: indexPath){
+            delegate?.didSelectStartDate(startDate: selectedStartDate)
+        } else if selectedEndDate == nil && allowRangeSelection {
+            if isBefore(dateA: selectedStartDate!, dateB: cellDate) && !isBetween(selectedStartCell!, and: indexPath){
                 selectedEndDate = cell.date
-                delegate.didSelectEndDate(endDate: selectedEndDate)
+                delegate?.didSelectEndDate(endDate: selectedEndDate)
                 self.navigationItem.rightBarButtonItem?.isEnabled = true
             } else {
                 // If a cell before the currently selected start date is selected then just set it as the new start date
-                selectedStartDate = cell.date
-                selectedStartCell = indexPath
-                delegate.didSelectStartDate(startDate: selectedStartDate)
+                self.selectedStartDate = cell.date
+                self.selectedStartCell = indexPath
+                delegate?.didSelectStartDate(startDate: selectedStartDate)
             }
         } else {
             selectedStartDate = cell.date
             selectedStartCell = indexPath
-            delegate.didSelectStartDate(startDate: selectedStartDate)
+            if !allowRangeSelection {
+                self.navigationItem.rightBarButtonItem?.isEnabled = true
+            }
+            delegate?.didSelectStartDate(startDate: selectedStartDate)
             selectedEndDate = nil
         }
         collectionView.reloadData()
     }
 
     public func collectionView(_ collectionView: UICollectionView,
-                               layout collectionViewLayout: UICollectionViewLayout,
-                               sizeForItemAt indexPath: IndexPath) -> CGSize {
+                        layout collectionViewLayout: UICollectionViewLayout,
+                        sizeForItemAt indexPath: IndexPath) -> CGSize {
         let padding = collectionViewInsets.left + collectionViewInsets.right
         let availableWidth = view.frame.width - padding
         let itemWidth = availableWidth / CGFloat(itemsPerRow)
